@@ -1,31 +1,51 @@
 package main
 
 import (
-	"net/http"
+	"fmt"
+	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/gavv/httpexpect"
+	"github.com/labstack/echo/v4"
 )
 
-func TestEchoHandler(t *testing.T) {
-	handler := GetHandler()
-	_ = InitDB()
-	defer TearDown()
+type SomeData struct {
+	handler *echo.Echo
+	server  *httptest.Server
+}
 
-	e := httpexpect.WithConfig(httpexpect.Config{
-		Client: &http.Client{
-			Transport: httpexpect.NewBinder(handler),
-			Jar:       httpexpect.NewJar(),
-		},
+var container *SomeData
+
+func TestMain(m *testing.M) {
+	fmt.Println("Before")
+	handler := GetHandler()
+	server := httptest.NewServer(handler)
+	container = &SomeData{handler, server}
+	_ = InitDB()
+
+	fmt.Println("Starting test")
+	code := m.Run()
+	fmt.Println("After")
+
+	server.Close()
+	TearDown()
+
+	fmt.Println("Quitting")
+	os.Exit(code)
+}
+
+func getTestClient(t *testing.T) *httpexpect.Expect {
+	return httpexpect.WithConfig(httpexpect.Config{
+		BaseURL:  container.server.URL,
 		Reporter: httpexpect.NewAssertReporter(t),
 		Printers: []httpexpect.Printer{
 			httpexpect.NewDebugPrinter(t, true),
 		},
 	})
-
-	testEcho(e)
 }
 
-func testEcho(e *httpexpect.Expect) {
-	e.GET("/products").Expect().Status(200)
+func TestGetProductsEmpty(t *testing.T) {
+	client := getTestClient(t)
+	client.GET("/products").Expect().Status(200)
 }
