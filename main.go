@@ -31,6 +31,10 @@ type ProductJSON struct {
 	DeletedAt *time.Time `json:"deletedAt"`
 }
 
+type ErrorJSON struct {
+	Message string `json:"string"`
+}
+
 func toProductJSON(product *Product) ProductJSON {
 	return ProductJSON{ID: product.ID, Code: product.Code, Price: product.Price, CreatedAt: product.CreatedAt, UpdatedAt: product.UpdatedAt, DeletedAt: product.DeletedAt}
 }
@@ -60,9 +64,10 @@ func GetHandler() *echo.Echo {
 
 	// Routes
 	e.GET("/", hello)
-	e.GET("/products", getProducts)
+	e.GET("/products", getProductsAPI)
 	e.GET("/products/:id", getProductByIDAPI)
 	e.POST("/products", createProductAPI)
+	e.DELETE("/products/:id", deleteProductByIDAPI)
 
 	return e
 }
@@ -99,20 +104,6 @@ func main() {
 	// Teardown dependencies
 	defer TearDown()
 
-	// // Create
-	// db.Create(&Product{Code: "L1212", Price: 1000})
-
-	// // Read
-	// var product Product
-	// db.First(&product, 1)                   // find product with id 1
-	// db.First(&product, "code = ?", "L1212") // find product with code l1212
-
-	// // Update - update product's price to 2000
-	// db.Model(&product).Update("Price", 2000)
-
-	// Delete - delete product
-	// db.Delete(&product)
-
 	// Start server
 	e.Logger.Fatal(e.Start(":3001"))
 }
@@ -123,26 +114,32 @@ func hello(c echo.Context) error {
 }
 
 // https://stackoverflow.com/questions/51643293/how-to-query-a-gorm-model
-func getProducts(c echo.Context) error {
-	conn := GetDB()
-	products := make([]Product, 0)
-
-	err := conn.Find(&products).Error
+func getProductsAPI(c echo.Context) error {
+	products, err := getProducts()
 
 	if err != nil {
-		if gorm.IsRecordNotFoundError(err) {
-			return c.JSON(404, struct {
-				Message string `json:"message"`
-			}{"record not found"})
-		}
-		c.Logger().Error(err)
+		fmt.Printf("[getProductByIDAPI] Error fetching products: %s\n", fmt.Sprint(err))
+		return c.JSON(500, "Unable to get the Products")
 	}
 
-	var jsonProducts = make([]ProductJSON, len(products))
-	for i := 0; i < len(products); i++ {
+	length := len(products)
+	var jsonProducts = make([]ProductJSON, length)
+	for i := 0; i < length; i++ {
 		jsonProducts[i] = toProductJSON(&products[i])
 	}
 	return c.JSON(200, jsonProducts)
+}
+
+func getProducts() ([]Product, error) {
+	products := make([]Product, 0)
+
+	err := db.Find(&products).Error
+
+	if err != nil {
+		return nil, err
+	}
+
+	return products, nil
 }
 
 func getProductByIDAPI(c echo.Context) error {
@@ -153,29 +150,14 @@ func getProductByIDAPI(c echo.Context) error {
 	product, err := getProductByID(id)
 
 	if err != nil {
-		fmt.Printf("[getProductByIDAPI] Error fetching product by id: %s\n", fmt.Sprint(err))
-		return c.JSON(500, "Unable to create the Product")
-	}
-
-	return c.JSON(200, product)
-}
-
-func getProduct(c echo.Context) error {
-	conn := GetDB()
-	products := make([]Product, 0)
-
-	err := conn.Find(&products).Error
-
-	if err != nil {
 		if gorm.IsRecordNotFoundError(err) {
-			return c.JSON(404, struct {
-				Message string `json:"message"`
-			}{"record not found"})
+			return c.JSON(404, "No product found")
 		}
-		c.Logger().Error(err)
+		fmt.Printf("[getProductByIDAPI] Error fetching product by id: %s\n", fmt.Sprint(err))
+		return c.JSON(500, "Unable to fetch the Product")
 	}
 
-	return c.JSON(200, products)
+	return c.JSON(200, toProductJSON(product))
 }
 
 func createProductAPI(c echo.Context) error {
@@ -221,4 +203,21 @@ func createProduct(code string, price uint) (*Product, error) {
 	}
 
 	return product, nil
+}
+
+func deleteProductByIDAPI(c echo.Context) error {
+	id := c.Param("id")
+	err := deleteProductByID(id)
+	if err != nil {
+		return c.JSON(http.StatusInternalServerError, "Error deleting the Product")
+	}
+	return c.NoContent(http.StatusOK)
+}
+
+func deleteProductByID(id string) error {
+	err := db.Where("id = ?", id).Delete(Product{}).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }

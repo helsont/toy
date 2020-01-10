@@ -53,7 +53,7 @@ func getTestClient(t *testing.T) *httpexpect.Expect {
 	})
 }
 
-func TestGetProductsEmpty(t *testing.T) {
+func TestGetProducts(t *testing.T) {
 	client := getTestClient(t)
 	client.GET("/products").Expect().Status(200)
 }
@@ -105,4 +105,25 @@ func TestGetProductByID(t *testing.T) {
 	assert.True(t, product.UpdatedAt.Equal(jsonProduct.UpdatedAt))
 	assert.Nil(t, product.DeletedAt)
 	assert.Nil(t, jsonProduct.DeletedAt)
+}
+
+func TestDeleteProduct(t *testing.T) {
+	client := getTestClient(t)
+
+	product, err := createProduct("Smelly Food", 55)
+	assert.Nil(t, err)
+
+	body := client.DELETE(fmt.Sprintf("/products/%d", product.ID)).
+		Expect().
+		Status(200).
+		Body().
+		Raw()
+	assert.Empty(t, body)
+
+	client.GET(fmt.Sprintf("/products/%d", product.ID)).
+		Expect().
+		Status(404).
+		Body().
+		Raw()
+
 }
