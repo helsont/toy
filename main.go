@@ -138,7 +138,11 @@ func getProducts(c echo.Context) error {
 		c.Logger().Error(err)
 	}
 
-	return c.JSON(200, products)
+	var jsonProducts = make([]ProductJSON, len(products))
+	for i := 0; i < len(products); i++ {
+		jsonProducts[i] = toProductJSON(&products[i])
+	}
+	return c.JSON(200, jsonProducts)
 }
 
 func getProductByIDAPI(c echo.Context) error {
