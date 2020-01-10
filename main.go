@@ -1,13 +1,17 @@
 package main
 
 import (
+	"context"
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"time"
 
 	"github.com/jinzhu/gorm"
 	"github.com/labstack/echo/v4"
+	"nhooyr.io/websocket"
+	"nhooyr.io/websocket/wsjson"
 
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/labstack/echo/v4/middleware"
@@ -28,38 +32,65 @@ func GetDB() *gorm.DB {
 func GetHandler() *echo.Echo {
 	// Echo instance
 	e := echo.New()
-	listener, err := net.Listen("tcp", ":3001")
-	if err != nil {
-		e.Logger.Fatal(listener)
-	}
-	e.Listener = listener
-
-	server := &http.Server{
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// err := echoServer(w, r)
-			// if err != nil {
-			// 	log.Printf("echo server: %v", err)
-			// }
-		}),
-		ReadTimeout:  20 * time.Minute,
-		WriteTimeout: 20 * time.Minute,
-	}
-	e.Server = server
 
 	// Middleware
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 
 	// Routes
-	e.GET("/", hello)
+	e.GET("/", func(c echo.Context) error {
+		return c.File("static/index.html")
+	})
 	e.GET("/products", getProductsAPI)
 	e.GET("/products/:id", getProductByIDAPI)
 	e.POST("/products", createProductAPI)
 	e.DELETE("/products/:id", deleteProductByIDAPI)
-
-	// e.GET("/ws", handleWebsocket)
+	e.Logger.Fatal(e.Start(":3001"))
 
 	return e
+}
+
+func GetWebsocketHandler() {
+	listener, err := net.Listen("tcp", "127.0.0.1:3002")
+	if err != nil {
+		panic(err)
+	}
+	// listener.Close()
+	fmt.Println("HELO")
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			c, err := websocket.Accept(w, r, &websocket.AcceptOptions{InsecureSkipVerify: true})
+			if err != nil {
+				panic(err)
+			}
+			defer c.Close(websocket.StatusInternalError, "the sky is falling")
+
+			ctx, cancel := context.WithTimeout(r.Context(), time.Second*10)
+			defer cancel()
+
+			var v interface{}
+			err = wsjson.Read(ctx, c, &v)
+			if err != nil {
+				panic(err)
+			}
+
+			log.Printf("received: %v", v)
+
+			c.Close(websocket.StatusNormalClosure, "")
+
+		}),
+		ReadTimeout:  20 * time.Minute,
+		WriteTimeout: 20 * time.Minute,
+	}
+	// server.Close()
+
+	go func() {
+		err := server.Serve(listener)
+		fmt.Println("Starting WS server")
+		if err != http.ErrServerClosed {
+			log.Fatalf("failed to listen and serve: %v", err)
+		}
+	}()
 }
 
 func InitDB() *gorm.DB {
@@ -85,6 +116,8 @@ func TearDown() {
 }
 
 func main() {
+	GetWebsocketHandler()
+
 	// Initialize web server
 	e := GetHandler()
 
