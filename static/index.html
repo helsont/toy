@@ -1,24 +1,30 @@
 <html>
   <head>
     <script>
+      function addRow(data) {
+        let td = document.createElement("tr");
+        let element = document.getElementById("table");
+        td.innerText = data;
+        element.appendChild(td);
+      }
       function run() {
         let socket = new WebSocket("ws://localhost:3002");
 
         socket.onopen = function(e) {
-          alert("[open] Connection established");
+          addRow("[open] Connection established");
 
-          alert("Sending to server");
+          addRow("Sending to server");
 
           socket.send(JSON.stringify({ hey: "boy" }));
         };
 
         socket.onmessage = function(event) {
-          alert(`[message] Data received from server: ${event.data}`);
+          addRow(`[message] Data received from server: ${event.data}`);
         };
 
         socket.onclose = function(event) {
           if (event.wasClean) {
-            alert(
+            addRow(
               `[close] Connection closed cleanly, code=${event.code} reason=${event.reason}`
             );
           } else {
@@ -26,7 +32,7 @@
 
             // event.code is usually 1006 in this case
 
-            alert("[close] Connection died");
+            addRow("[close] Connection died");
           }
         };
 
@@ -38,4 +44,7 @@
       setTimeout(run, 500);
     </script>
   </head>
+  <body>
+    <table id="table"></table>
+  </body>
 </html>
