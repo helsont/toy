@@ -1,28 +1,31 @@
 package main
 
 import (
-	"github.com/gavv/httpexpect"
-	"github.com/stretchr/testify/assert"
 	"net/http"
-	"net/http/httptest"
 	"testing"
+
+	"github.com/gavv/httpexpect"
 )
 
-func TestFruits(t *testing.T) {
-	// create http.Handler
-	handler := Hello()
+func TestEchoHandler(t *testing.T) {
+	handler := GetHandler()
+	_ = InitDB()
+	defer TearDown()
 
-	// run server using httptest
-	server := httptest.NewServer(handler)
-	defer server.Close()
+	e := httpexpect.WithConfig(httpexpect.Config{
+		Client: &http.Client{
+			Transport: httpexpect.NewBinder(handler),
+			Jar:       httpexpect.NewJar(),
+		},
+		Reporter: httpexpect.NewAssertReporter(t),
+		Printers: []httpexpect.Printer{
+			httpexpect.NewDebugPrinter(t, true),
+		},
+	})
 
-	// create httpexpect instance
-	e := httpexpect.New(t, server.URL)
+	testEcho(e)
+}
 
-	// is it working?
-	e.GET("/fruits").
-		Expect().
-		Status(http.StatusOK).JSON().Array().Empty()
-
-	assert.True(t, true, "True is true!")
+func testEcho(e *httpexpect.Expect) {
+	e.GET("/products").Expect().Status(200)
 }
