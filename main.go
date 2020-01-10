@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -30,6 +31,17 @@ type ProductJSON struct {
 	DeletedAt *time.Time `json:"deletedAt"`
 }
 
+func toProductJSON(product *Product) ProductJSON {
+	return ProductJSON{ID: product.ID, Code: product.Code, Price: product.Price, CreatedAt: product.CreatedAt, UpdatedAt: product.UpdatedAt, DeletedAt: product.DeletedAt}
+}
+
+func fromProductJSON(value string) (*ProductJSON, error) {
+	var product *ProductJSON
+	byteValue := []byte(value)
+	err := json.Unmarshal(byteValue, &product)
+	return product, err
+}
+
 var db *gorm.DB
 
 // GetDB : returns a handle to the DB object
@@ -49,6 +61,7 @@ func GetHandler() *echo.Echo {
 	// Routes
 	e.GET("/", hello)
 	e.GET("/products", getProducts)
+	e.GET("/products/:id", getProductByIDAPI)
 	e.POST("/products", createProductAPI)
 
 	return e
@@ -58,7 +71,7 @@ func InitDB() *gorm.DB {
 	conn, err := gorm.Open("postgres", "host=localhost port=5432 user=helson dbname=toy sslmode=disable")
 
 	if err != nil {
-		fmt.Printf(err.Error())
+		fmt.Printf("[InitDB] Error intializing database:\n %s", fmt.Sprint(err))
 		panic("failed to connect database")
 	}
 
@@ -128,22 +141,70 @@ func getProducts(c echo.Context) error {
 	return c.JSON(200, products)
 }
 
+func getProductByIDAPI(c echo.Context) error {
+	id := c.Param("id")
+
+	fmt.Printf("[getProductByIDAPI] ID: %s\n", id)
+
+	product, err := getProductByID(id)
+
+	if err != nil {
+		fmt.Printf("[getProductByIDAPI] Error fetching product by id: %s\n", fmt.Sprint(err))
+		return c.JSON(500, "Unable to create the Product")
+	}
+
+	return c.JSON(200, product)
+}
+
+func getProduct(c echo.Context) error {
+	conn := GetDB()
+	products := make([]Product, 0)
+
+	err := conn.Find(&products).Error
+
+	if err != nil {
+		if gorm.IsRecordNotFoundError(err) {
+			return c.JSON(404, struct {
+				Message string `json:"message"`
+			}{"record not found"})
+		}
+		c.Logger().Error(err)
+	}
+
+	return c.JSON(200, products)
+}
+
 func createProductAPI(c echo.Context) error {
 	code := c.QueryParams().Get("code")
 	priceStr := c.QueryParams().Get("price")
+
+	fmt.Printf("[createProductAPI] Code: %s Price: %s\n", code, priceStr)
+
 	price, err := strconv.Atoi(priceStr)
 
 	// TODO: Implement proper form validation
 	if err != nil {
+		fmt.Printf("[createProductAPI] Bad request: %s\n", fmt.Sprint(err))
 		return c.JSON(400, "Bad request")
 	}
 
-	_, err2 := createProduct(code, uint(price))
+	productOrm, err2 := createProduct(code, uint(price))
 	if err2 != nil {
+		fmt.Printf("[createProductAPI] Error creating the product: %s\n", fmt.Sprint(err2))
 		return c.JSON(500, "Unable to create the Product")
 	}
 
+	c.JSON(200, toProductJSON(productOrm))
 	return nil
+}
+
+func getProductByID(id string) (*Product, error) {
+	var product Product
+	err := db.Where("id = ?", id).First(&product).Error
+	if err != nil {
+		return nil, err
+	}
+	return &product, nil
 }
 
 func createProduct(code string, price uint) (*Product, error) {
@@ -151,6 +212,7 @@ func createProduct(code string, price uint) (*Product, error) {
 	err := db.Create(product).Error
 
 	if err != nil {
+		fmt.Printf("[createProduct] Error creating the product: %s\n", fmt.Sprint(err))
 		return nil, err
 	}
 
