@@ -93,7 +93,7 @@ func TestGetProductByID(t *testing.T) {
 		Status(200).
 		Body().
 		Raw()
-	jsonProduct, err2 := fromProductJSON(body)
+	jsonProduct, err2 := FromProductJSON(body)
 	// fmt.Printf("json product: %s\n", fmt.Sprint(jsonProduct))
 	// fmt.Printf("database product: %s\n", fmt.Sprint(product))
 	assert.Nil(t, err2)
