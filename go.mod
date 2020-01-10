@@ -1,4 +1,4 @@
-module github.com/helsont/go-toy
+module github.com/helsont/toy
 
 go 1.13
 
@@ -17,6 +17,8 @@ require (
 	github.com/moul/http2curl v1.0.0 // indirect
 	github.com/stretchr/objx v0.2.0 // indirect
 	github.com/stretchr/testify v1.4.0
+	golang.org/x/net v0.0.0-20191209160850-c0dbc17a3553
 	gopkg.in/reform.v1 v1.3.3
 	gopkg.in/yaml.v2 v2.2.7 // indirect
+	nhooyr.io/websocket v1.7.4
 )

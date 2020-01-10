@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"strconv"
 	"time"
@@ -14,22 +15,8 @@ import (
 
 	_ "github.com/jinzhu/gorm/dialects/postgres"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/helsont/toy/models/product"
 )
-
-type Product struct {
-	gorm.Model
-	Code  string
-	Price uint
-}
-
-type ProductJSON struct {
-	ID        uint       `json:"id"`
-	Code      string     `json:"code"`
-	Price     uint       `json:"price"`
-	CreatedAt time.Time  `json:"createdAt"`
-	UpdatedAt time.Time  `json:"updatedAt"`
-	DeletedAt *time.Time `json:"deletedAt"`
-}
 
 type ErrorJSON struct {
 	Message string `json:"string"`
@@ -57,6 +44,23 @@ func GetDB() *gorm.DB {
 func GetHandler() *echo.Echo {
 	// Echo instance
 	e := echo.New()
+	listener, err := net.Listen("tcp", ":3001")
+	if err != nil {
+		e.Logger.Fatal(listener)
+	}
+	e.Listener = listener
+
+	server := &http.Server{
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// err := echoServer(w, r)
+			// if err != nil {
+			// 	log.Printf("echo server: %v", err)
+			// }
+		}),
+		ReadTimeout:  20 * time.Minute,
+		WriteTimeout: 20 * time.Minute,
+	}
+	e.Server = server
 
 	// Middleware
 	e.Use(middleware.Logger())
@@ -68,6 +72,8 @@ func GetHandler() *echo.Echo {
 	e.GET("/products/:id", getProductByIDAPI)
 	e.POST("/products", createProductAPI)
 	e.DELETE("/products/:id", deleteProductByIDAPI)
+
+	// e.GET("/ws", handleWebsocket)
 
 	return e
 }
@@ -105,13 +111,17 @@ func main() {
 	defer TearDown()
 
 	// Start server
-	e.Logger.Fatal(e.Start(":3001"))
+	e.Logger.Fatal(e.Start(""))
 }
 
 // Handler
 func hello(c echo.Context) error {
 	return c.String(http.StatusOK, "Hello, World!")
 }
+
+// func handleWebsocket(w http.ResponseWriter, r *http.Request) {
+
+// }
 
 // https://stackoverflow.com/questions/51643293/how-to-query-a-gorm-model
 func getProductsAPI(c echo.Context) error {
@@ -219,5 +229,28 @@ func deleteProductByID(id string) error {
 	if err != nil {
 		return err
 	}
+	return nil
+}
+
+func handleWebsocket(c echo.Context) error {
+
+	// websocket.Handler(func(ws *websocket.Conn) {
+	// 	defer ws.Close()
+	// 	for {
+	// 		// Write
+	// 		err := websocket.Message.Send(ws, "Hello, Client!")
+	// 		if err != nil {
+	// 			c.Logger().Error(err)
+	// 		}
+
+	// 		// Read
+	// 		msg := ""
+	// 		err = websocket.Message.Receive(ws, &msg)
+	// 		if err != nil {
+	// 			c.Logger().Error(err)
+	// 		}
+	// 		fmt.Printf("%s\n", msg)
+	// 	}
+	// }).ServeHTTP(c.Response(), c.Request())
 	return nil
 }
